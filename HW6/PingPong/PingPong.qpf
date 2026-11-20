@@ -1,5 +1,4 @@
-QUARTUS_VERSION = "18.1"
-DATE = "00:00:00  November 20, 2026"
+QUARTUS_VERSION = "13.1"
 
 # Revisions
 

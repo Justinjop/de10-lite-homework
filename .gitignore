@@ -1,8 +1,8 @@
-*.sof
-*.pof
 db/
 incremental_db/
-output_files/
+output_files/*
+!output_files/*.sof
 sim/work/
 sim/transcript
 *.wlf
+*.qws

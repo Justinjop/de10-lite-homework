@@ -1,21 +1,25 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
--- 4-digit BCD up/down counter 0~9999 on DE10-Lite (HEX3 ~ HEX0), 100 Hz
---   KEY0 : Reset (press = 0000)
---   SW0  : direction (1 = up, 0 = down)
+-- 4-digit BCD up/down counter 0~9999 on DE0 (HEX3 ~ HEX0), 100 Hz
+--   BUTTON0 : Reset (press = 0000)
+--   SW0     : direction (1 = up, 0 = down)
 entity BCDcnt is
 	generic(
 			STEP_CLKS:integer := 500000		-- clocks per count, 100 Hz
 			);
 	port(
-			MAX10_CLK1_50:in std_logic;
-			KEY:in std_logic_vector(0 downto 0);
+			CLOCK_50:in std_logic;
+			BUTTON:in std_logic_vector(0 downto 0);
 			SW:in std_logic_vector(0 downto 0);
-			HEX0:out std_logic_vector(6 downto 0);
-			HEX1:out std_logic_vector(6 downto 0);
-			HEX2:out std_logic_vector(6 downto 0);
-			HEX3:out std_logic_vector(6 downto 0)
+			HEX0_D:out std_logic_vector(6 downto 0);
+			HEX0_DP:out std_logic;
+			HEX1_D:out std_logic_vector(6 downto 0);
+			HEX1_DP:out std_logic;
+			HEX2_D:out std_logic_vector(6 downto 0);
+			HEX2_DP:out std_logic;
+			HEX3_D:out std_logic_vector(6 downto 0);
+			HEX3_DP:out std_logic
 			);
 end BCDcnt;
 
@@ -32,8 +36,8 @@ architecture BCDcnt of BCDcnt is
 	signal tick:std_logic := '0';					-- one pulse per count
 	signal d0,d1,d2,d3:integer range 0 to 9 := 0;	-- digits, d3 = thousands
 begin
-	clk <= MAX10_CLK1_50;
-	Reset <= KEY(0);
+	clk <= CLOCK_50;
+	Reset <= BUTTON(0);
 	up <= SW(0);
 
 	-- 100 Hz count rate
@@ -99,9 +103,13 @@ begin
 		end if;
 	end process;
 
-	U3:Seg7 port map(d3,HEX3);
-	U2:Seg7 port map(d2,HEX2);
-	U1:Seg7 port map(d1,HEX1);
-	U0:Seg7 port map(d0,HEX0);
+	U3:Seg7 port map(d3,HEX3_D);
+	U2:Seg7 port map(d2,HEX2_D);
+	U1:Seg7 port map(d1,HEX1_D);
+	U0:Seg7 port map(d0,HEX0_D);
+	HEX0_DP <= '1';									-- decimal points off
+	HEX1_DP <= '1';
+	HEX2_DP <= '1';
+	HEX3_DP <= '1';
 
 end BCDcnt;

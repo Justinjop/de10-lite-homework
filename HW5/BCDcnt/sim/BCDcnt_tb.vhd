@@ -9,9 +9,10 @@ architecture sim of BCDcnt_tb is
 	constant TCLK:time := 20 ns;
 	signal clk:std_logic := '0';
 	signal done:boolean := false;
-	signal KEY:std_logic_vector(0 downto 0) := "1";
+	signal BUTTON:std_logic_vector(0 downto 0) := "1";
 	signal SW:std_logic_vector(0 downto 0) := "1";		-- SW0 direction
 	signal HEX0,HEX1,HEX2,HEX3:std_logic_vector(6 downto 0);
+	signal DP0,DP1,DP2,DP3:std_logic;
 
 	function dig(s:std_logic_vector(6 downto 0)) return integer is
 	begin
@@ -39,7 +40,7 @@ begin
 
 	dut:entity work.BCDcnt
 		generic map(STEP_CLKS => 4)
-		port map(clk, KEY, SW, HEX0, HEX1, HEX2, HEX3);
+		port map(clk, BUTTON, SW, HEX0, DP0, HEX1, DP1, HEX2, DP2, HEX3, DP3);
 
 	process
 		variable old,v:integer;
@@ -70,8 +71,9 @@ begin
 	begin
 		-- reset
 		wait for 3*TCLK;
-		KEY <= "0"; wait for 3*TCLK; KEY <= "1"; wait for TCLK;
+		BUTTON <= "0"; wait for 3*TCLK; BUTTON <= "1"; wait for TCLK;
 		assert val = 0 report "not 0000 after reset" severity failure;
+		assert DP0 = '1' and DP1 = '1' and DP2 = '1' and DP3 = '1' report "decimal points are on" severity failure;
 
 		-- up through the wrap around 9999 -> 0000
 		steps(10001,1);
@@ -85,8 +87,8 @@ begin
 		steps(5,1);
 
 		-- reset while counting
-		KEY <= "0"; wait for 3*TCLK; assert val = 0 report "reset while counting failed" severity failure;
-		KEY <= "1"; wait for TCLK;
+		BUTTON <= "0"; wait for 3*TCLK; assert val = 0 report "reset while counting failed" severity failure;
+		BUTTON <= "1"; wait for TCLK;
 
 		-- 100 Hz step
 		next_val; t0 := now; next_val; t1 := now;

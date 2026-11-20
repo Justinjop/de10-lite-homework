@@ -1,24 +1,29 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
--- Table tennis on DE10-Lite (3 games, first to win 2 games)
---   A : KEY1 (left side, LEDR9)        B : KEY0 (right side, LEDR0)
+-- Table tennis on DE0 (3 games, first to win 2 games)
+--   A : BUTTON2 (left side, LEDG9)     B : BUTTON0 (right side, LEDG0)
 --   SW0 : Reset (0 = reset, 1 = play)
 --   HEX3 HEX2 : A games / A points     HEX1 HEX0 : B points / B games
+--   (the decimal points stay off)
 entity PingPong is
 	generic(
 			STEP_CLKS:integer := 10000000;		-- clocks per LED step, 0.2 s
 			BLINK_HALF:integer := 12500000		-- winner LEDs blink, 0.25 s
 			);
 	port(
-			MAX10_CLK1_50:in std_logic;
+			CLOCK_50:in std_logic;
 			SW:in std_logic_vector(0 downto 0);
-			KEY:in std_logic_vector(1 downto 0);
-			LEDR:out std_logic_vector(9 downto 0);
-			HEX0:out std_logic_vector(6 downto 0);
-			HEX1:out std_logic_vector(6 downto 0);
-			HEX2:out std_logic_vector(6 downto 0);
-			HEX3:out std_logic_vector(6 downto 0)
+			BUTTON:in std_logic_vector(2 downto 0);
+			LEDG:out std_logic_vector(9 downto 0);
+			HEX0_D:out std_logic_vector(6 downto 0);
+			HEX0_DP:out std_logic;
+			HEX1_D:out std_logic_vector(6 downto 0);
+			HEX1_DP:out std_logic;
+			HEX2_D:out std_logic_vector(6 downto 0);
+			HEX2_DP:out std_logic;
+			HEX3_D:out std_logic_vector(6 downto 0);
+			HEX3_DP:out std_logic
 			);
 end PingPong;
 
@@ -47,7 +52,7 @@ architecture PingPong of PingPong is
 	signal newgame,over:std_logic := '0';			-- points are cleared at next serve / match over
 	signal champ:integer range 0 to 2 := 0;			-- winner of the match, 1 A, 2 B
 begin
-	clk <= MAX10_CLK1_50;
+	clk <= CLOCK_50;
 	Reset <= SW(0);
 	canserve <= '1' when over='0' and winA='0' and winB='0' else '0';
 
@@ -55,8 +60,8 @@ begin
 	process(clk)
 	begin
 		if rising_edge(clk) then
-			a1 <= not KEY(1);	a2 <= a1;	a3 <= a2;
-			b1 <= not KEY(0);	b2 <= b1;	b3 <= b2;
+			a1 <= not BUTTON(2);	a2 <= a1;	a3 <= a2;
+			b1 <= not BUTTON(0);	b2 <= b1;	b3 <= b2;
 
 			if serve='1' then						-- full first step after a serve
 				cnt <= 0;
@@ -215,28 +220,32 @@ begin
 	-- LEDs: ball position, or the winner's side blinks when the match is over
 	process(st,over,champ,blink)
 	begin
-		LEDR <= "0000000000";
+		LEDG <= "0000000000";
 		if over='1' then
 			if blink='1' then
 				if champ=1 then
-					LEDR(9 downto 5) <= "11111";
+					LEDG(9 downto 5) <= "11111";
 				else
-					LEDR(4 downto 0) <= "11111";
+					LEDG(4 downto 0) <= "11111";
 				end if;
 			end if;
 		else
 			for i in 0 to 9 loop
 				if st = 10-i or st = 10+i then
-					LEDR(i) <= '1';
+					LEDG(i) <= '1';
 				end if;
 			end loop;
 		end if;
 	end process;
 
 	-- scoreboard
-	U3:Seg7 port map(gmA,HEX3);
-	U2:Seg7 port map(ptsA,HEX2);
-	U1:Seg7 port map(ptsB,HEX1);
-	U0:Seg7 port map(gmB,HEX0);
+	U3:Seg7 port map(gmA,HEX3_D);
+	U2:Seg7 port map(ptsA,HEX2_D);
+	U1:Seg7 port map(ptsB,HEX1_D);
+	U0:Seg7 port map(gmB,HEX0_D);
+	HEX0_DP <= '1';								-- decimal points off
+	HEX1_DP <= '1';
+	HEX2_DP <= '1';
+	HEX3_DP <= '1';
 
 end PingPong;
