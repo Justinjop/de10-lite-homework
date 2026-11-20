@@ -1,0 +1,196 @@
+library ieee;
+use ieee.std_logic_1164.all;
+
+-- Self-checking testbench (ModelSim). A step is shortened to 40 clocks.
+entity PingPong_tb is
+end PingPong_tb;
+
+architecture sim of PingPong_tb is
+	constant TCLK:time := 20 ns;
+	signal clk:std_logic := '0';
+	signal done:boolean := false;
+	signal SW:std_logic_vector(0 downto 0) := "0";
+	signal KEY:std_logic_vector(1 downto 0) := "11";
+	signal LEDR:std_logic_vector(9 downto 0);
+	signal HEX0,HEX1,HEX2,HEX3:std_logic_vector(6 downto 0);
+
+	function one_hot(n:integer) return std_logic_vector is
+		variable v:std_logic_vector(9 downto 0) := (others => '0');
+	begin
+		v(n) := '1';
+		return v;
+	end one_hot;
+
+	function dig(s:std_logic_vector(6 downto 0)) return integer is
+	begin
+		case s is
+			when "1000000" => return 0;
+			when "1111001" => return 1;
+			when "0100100" => return 2;
+			when "0110000" => return 3;
+			when "0011001" => return 4;
+			when "0010010" => return 5;
+			when "0000010" => return 6;
+			when "1111000" => return 7;
+			when "0000000" => return 8;
+			when "0010000" => return 9;
+			when "0001000" => return 10;	-- A
+			when "0000011" => return 11;	-- b
+			when "0111111" => return 12;	-- -
+			when "1111111" => return 15;	-- blank
+			when others => return -1;
+		end case;
+	end dig;
+begin
+	clk <= not clk after TCLK/2 when not done;
+
+	dut:entity work.PingPong
+		generic map(STEP_CLKS => 40, BLINK_HALF => 40)
+		port map(clk, SW, KEY, LEDR, HEX0, HEX1, HEX2, HEX3);
+
+	process
+		variable t0,t1:time;
+
+		procedure tap(signal k:out std_logic) is
+		begin
+			k <= '0';
+			wait for 5*TCLK;
+			k <= '1';
+			wait for 5*TCLK;
+		end tap;
+
+		procedure wait_led(n:integer) is			-- wait until only LED n is lit
+			variable c:integer := 0;
+		begin
+			while LEDR /= one_hot(n) loop
+				wait until rising_edge(clk);
+				c := c+1;
+				assert c < 3000 report "timeout waiting for LED " & integer'image(n) severity failure;
+			end loop;
+		end wait_led;
+
+		procedure wait_off is						-- wait until the ball is gone
+			variable c:integer := 0;
+		begin
+			while LEDR /= "0000000000" loop
+				wait until rising_edge(clk);
+				c := c+1;
+				assert c < 3000 report "timeout waiting for ball to leave" severity failure;
+			end loop;
+			wait for 5*TCLK;
+		end wait_off;
+
+		procedure check(ga,pa,pb,gb:integer; msg:string) is
+		begin
+			assert dig(HEX3)=ga and dig(HEX2)=pa and dig(HEX1)=pb and dig(HEX0)=gb
+				report msg & ": expected " & integer'image(ga) & integer'image(pa) & "-" & integer'image(pb) & integer'image(gb)
+					& " got " & integer'image(dig(HEX3)) & integer'image(dig(HEX2)) & "-" & integer'image(dig(HEX1)) & integer'image(dig(HEX0))
+				severity failure;
+		end check;
+
+		procedure a_scores is						-- A serves, B does not hit
+		begin
+			tap(KEY(1));
+			wait_led(0);
+			wait_off;
+		end a_scores;
+
+		procedure b_scores is						-- B serves, A does not hit
+		begin
+			tap(KEY(0));
+			wait_led(9);
+			wait_off;
+		end b_scores;
+
+		procedure reset_game is
+		begin
+			SW <= "0";
+			wait for 4*TCLK;
+			SW <= "1";
+			wait for 4*TCLK;
+		end reset_game;
+	begin
+		KEY <= "11";
+
+		-- step time
+		reset_game;
+		tap(KEY(1)); wait_led(8); t0 := now; wait_led(7); t1 := now;
+		assert t1-t0 = 40*TCLK report "slow step is not 40 clocks" severity failure;
+
+		-- reset: nothing lit, scoreboard 0, A serves first
+		reset_game;
+		assert LEDR = "0000000000" report "LEDs not off after reset" severity failure;
+		check(0,0,0,0,"after reset");
+		tap(KEY(0));
+		wait for 10*TCLK;
+		assert LEDR = "0000000000" report "B served before A" severity failure;
+
+		-- rally: A serves, B hits, A hits, B misses
+		tap(KEY(1)); wait_led(9);					-- ball starts at L9
+		wait_led(0); tap(KEY(0));					-- B hits at L0
+		wait_led(9); tap(KEY(1));					-- A hits at L9
+		wait_led(8);								-- ball goes back to the right
+		wait_led(0); wait_off;						-- B misses
+		check(0,1,0,0,"A 1-0");
+
+		-- game 1 to A
+		a_scores; check(0,2,0,0,"A 2-0");
+		a_scores; check(1,3,0,0,"game 1 to A");
+		tap(KEY(1)); wait_led(9);
+		check(1,0,0,0,"points cleared at serve");
+
+		-- game 2: B presses too early (at L1)
+		wait_led(1); tap(KEY(0)); wait_off;
+		check(1,1,0,0,"B early");
+		a_scores;
+		a_scores;
+		check(2,3,0,0,"match to A");
+		wait until LEDR(9 downto 5) = "11111" for 20*TCLK*40;
+		assert LEDR(9 downto 5) = "11111" and LEDR(4 downto 0) = "00000" report "A side does not blink" severity failure;
+
+		-- match is over: nobody can serve
+		tap(KEY(1));
+		for i in 1 to 200 loop
+			wait for TCLK;
+			assert (LEDR(9 downto 5) = "00000" or LEDR(9 downto 5) = "11111") and LEDR(4 downto 0) = "00000"
+				report "ball appeared after the match" severity failure;
+		end loop;
+
+		-- new opponent (B) steps in, winner A serves
+		tap(KEY(0));
+		check(0,0,0,0,"new match");
+		tap(KEY(1)); wait_led(9);
+		wait_led(0); tap(KEY(0));
+		wait_led(9); wait_off;						-- A misses, B scores
+		check(0,0,1,0,"B 1");
+
+		-- game 1 to B, A presses too early (at L8) in game 2
+		b_scores; check(0,0,2,0,"B 2");
+		b_scores; check(0,0,3,1,"game 1 to B");
+		tap(KEY(0)); wait_led(1);
+		check(0,0,0,1,"points cleared at serve (B)");
+		wait_led(8); tap(KEY(1)); wait_off;
+		check(0,0,1,1,"A early");
+		b_scores;
+		b_scores;
+		check(0,0,3,2,"match to B");
+		wait until LEDR(4 downto 0) = "11111" for 20*TCLK*40;
+		assert LEDR(4 downto 0) = "11111" and LEDR(9 downto 5) = "00000" report "B side does not blink" severity failure;
+
+		-- new opponent (A) steps in, winner B serves, A cannot serve
+		tap(KEY(1));
+		check(0,0,0,0,"new match 2");
+		tap(KEY(1));
+		wait for 10*TCLK;
+		assert LEDR = "0000000000" report "A served before B" severity failure;
+
+		-- B wins another match
+		for i in 1 to 5 loop b_scores; end loop;
+		tap(KEY(0)); wait_led(9); wait_off;
+		check(0,0,3,2,"second match to B");
+
+		report "PingPong testbench: ALL PASSED" severity note;
+		done <= true;
+		wait;
+	end process;
+end sim;

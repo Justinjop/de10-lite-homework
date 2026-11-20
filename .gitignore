@@ -1,0 +1,8 @@
+*.sof
+*.pof
+db/
+incremental_db/
+output_files/
+sim/work/
+sim/transcript
+*.wlf
