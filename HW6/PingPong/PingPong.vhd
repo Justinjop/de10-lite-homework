@@ -1,15 +1,10 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
--- Table tennis on DE0 (3 games, first to win 2 games)
---   A : BUTTON2 (left side, LEDG9)     B : BUTTON0 (right side, LEDG0)
---   SW0 : Reset (0 = reset, 1 = play)
---   HEX3 HEX2 : A games / A points     HEX1 HEX0 : B points / B games
---   (the decimal points stay off)
 entity PingPong is
 	generic(
-			STEP_CLKS:integer := 10000000;		-- clocks per LED step, 0.2 s
-			BLINK_HALF:integer := 12500000		-- winner LEDs blink, 0.25 s
+			STEP_CLKS:integer := 10000000;
+			BLINK_HALF:integer := 12500000
 			);
 	port(
 			CLOCK_50:in std_logic;
@@ -36,34 +31,31 @@ architecture PingPong of PingPong is
 	end component;
 
 	signal clk,Reset:std_logic;
-	signal a1,a2,a3,b1,b2,b3:std_logic := '0';		-- key synchronizer / edge detector
-	signal pa,pb:std_logic := '0';					-- key pressed during this step
+	signal a1,a2,a3,b1,b2,b3:std_logic := '0';
+	signal pa,pb:std_logic := '0';
 	signal cnt,bcnt:integer range 0 to 16777215;
-	signal tick,blink:std_logic := '0';				-- one pulse per step / blink clock
+	signal tick,blink:std_logic := '0';
 
-	-- ball state (state diagram): 0 = A serves, 1~10 = L9~L0 (to B),
-	--                             11~19 = L1~L9 (to A), 20 = B serves
 	signal st:integer range 0 to 20 := 0;
-	signal winA,winB,serve:std_logic := '0';		-- A / B wins the rally, a serve
+	signal winA,winB,serve:std_logic := '0';
 	signal canserve:std_logic;
 
-	signal ptsA,ptsB:integer range 0 to 3 := 0;		-- points of this game
-	signal gmA,gmB:integer range 0 to 2 := 0;		-- games won
-	signal newgame,over:std_logic := '0';			-- points are cleared at next serve / match over
-	signal champ:integer range 0 to 2 := 0;			-- winner of the match, 1 A, 2 B
+	signal ptsA,ptsB:integer range 0 to 3 := 0;
+	signal gmA,gmB:integer range 0 to 2 := 0;
+	signal newgame,over:std_logic := '0';
+	signal champ:integer range 0 to 2 := 0;
 begin
 	clk <= CLOCK_50;
 	Reset <= SW(0);
 	canserve <= '1' when over='0' and winA='0' and winB='0' else '0';
 
-	-- keys (active low) and step timer
 	process(clk)
 	begin
 		if rising_edge(clk) then
 			a1 <= not BUTTON(2);	a2 <= a1;	a3 <= a2;
 			b1 <= not BUTTON(0);	b2 <= b1;	b3 <= b2;
 
-			if serve='1' then						-- full first step after a serve
+			if serve='1' then
 				cnt <= 0;
 				tick <= '0';
 			elsif cnt >= STEP_CLKS-1 then
@@ -74,7 +66,6 @@ begin
 				tick <= '0';
 			end if;
 
-			-- a key press is remembered until the next step
 			if tick='1' then
 				pa <= '0';
 				pb <= '0';
@@ -91,7 +82,6 @@ begin
 		end if;
 	end process;
 
-	-- ball FSM
 	process(clk,Reset)
 	begin
 		if Reset='0' then
@@ -104,14 +94,14 @@ begin
 			winB <= '0';
 			serve <= '0';
 			case st is
-				when 0 =>								-- A serves
+				when 0 =>
 					if pa='1' and canserve='1' then
 						st <= 1;
 						serve <= '1';
 					end if;
-				when 1 to 8 | 11 to 17 =>				-- ball flying
+				when 1 to 8 | 11 to 17 =>
 					if tick='1' then st <= st+1; end if;
-				when 9 =>								-- L1, B pressed too early
+				when 9 =>
 					if tick='1' then
 						if pb='1' then
 							st <= 0;
@@ -120,7 +110,7 @@ begin
 							st <= 10;
 						end if;
 					end if;
-				when 10 =>								-- L0, B must hit
+				when 10 =>
 					if tick='1' then
 						if pb='1' then
 							st <= 11;
@@ -129,7 +119,7 @@ begin
 							winA <= '1';
 						end if;
 					end if;
-				when 18 =>								-- L8, A pressed too early
+				when 18 =>
 					if tick='1' then
 						if pa='1' then
 							st <= 20;
@@ -138,7 +128,7 @@ begin
 							st <= 19;
 						end if;
 					end if;
-				when 19 =>								-- L9, A must hit
+				when 19 =>
 					if tick='1' then
 						if pa='1' then
 							st <= 2;
@@ -147,7 +137,7 @@ begin
 							winB <= '1';
 						end if;
 					end if;
-				when 20 =>								-- B serves
+				when 20 =>
 					if pb='1' and canserve='1' then
 						st <= 11;
 						serve <= '1';
@@ -157,7 +147,6 @@ begin
 		end if;
 	end process;
 
-	-- score: 3 points per game, 2 games per match
 	process(clk,Reset)
 	begin
 		if Reset='0' then
@@ -170,7 +159,7 @@ begin
 			champ <= 0;
 		elsif rising_edge(clk) then
 			if over='1' then
-				-- the loser's key brings in a new opponent, the winner stays and serves
+
 				if (champ=1 and pb='1') or (champ=2 and pa='1') then
 					over <= '0';
 					newgame <= '0';
@@ -217,7 +206,6 @@ begin
 		end if;
 	end process;
 
-	-- LEDs: ball position, or the winner's side blinks when the match is over
 	process(st,over,champ,blink)
 	begin
 		LEDG <= "0000000000";
@@ -238,12 +226,11 @@ begin
 		end if;
 	end process;
 
-	-- scoreboard
 	U3:Seg7 port map(gmA,HEX3_D);
 	U2:Seg7 port map(ptsA,HEX2_D);
 	U1:Seg7 port map(ptsB,HEX1_D);
 	U0:Seg7 port map(gmB,HEX0_D);
-	HEX0_DP <= '1';								-- decimal points off
+	HEX0_DP <= '1';
 	HEX1_DP <= '1';
 	HEX2_DP <= '1';
 	HEX3_DP <= '1';

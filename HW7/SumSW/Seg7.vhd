@@ -1,8 +1,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
--- 7-segment decoder (DE10-Lite HEX is active low, seg = g f e d c b a)
--- 0~9 : digit, others : blank
 entity Seg7 is
 	port(
 			d:in integer range 0 to 15;

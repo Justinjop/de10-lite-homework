@@ -2,16 +2,9 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
--- 1+2+3+...+n on DE0, n = SW9 ~ SW0 (0 ~ 1023)
---   BUTTON0 : show the result at once, n(n+1)/2
---   BUTTON1 : single step, every press adds the next number
---   BUTTON2 : hold to see the digits above the thousands (the sum reaches 523776, the display has 4 digits)
---   LEDG    : the number added last (how far the single step has gone)
---   HEX3 ~ HEX0 : the lower 4 digits of the sum; the decimal point of HEX3 is on when the sum is 10000 or more
--- Changing the switches starts over from 0.
 entity SumSW is
 	generic(
-			LOCK:integer := 500000			-- ignore a button for 10 ms after a press
+			LOCK:integer := 500000
 			);
 	port(
 			CLOCK_50:in std_logic;
@@ -37,7 +30,6 @@ architecture SumSW of SumSW is
 			);
 	end component;
 
-	-- binary to BCD (shift and add 3)
 	function bin2bcd(v:integer) return std_logic_vector is
 		variable b:unsigned(19 downto 0) := to_unsigned(v,20);
 		variable r:unsigned(23 downto 0) := (others => '0');
@@ -55,25 +47,24 @@ architecture SumSW of SumSW is
 	end bin2bcd;
 
 	signal clk:std_logic;
-	signal sw1,sw2,swd:std_logic_vector(9 downto 0) := (others => '0');	-- synchronizer, previous value
+	signal sw1,sw2,swd:std_logic_vector(9 downto 0) := (others => '0');
 	signal k0a,k0b,k0c,k1a,k1b,k1c:std_logic := '0';
-	signal h1,h2:std_logic := '0';					-- BUTTON2 synchronizer
+	signal h1,h2:std_logic := '0';
 	signal lock0,lock1:integer range 0 to 16777215 := 0;
-	signal p0,p1:std_logic := '0';					-- one pulse per button press
+	signal p0,p1:std_logic := '0';
 	signal n:integer range 0 to 1023;
-	signal tri:integer range 0 to 1048575;			-- n(n+1)/2
-	signal i:integer range 0 to 1023 := 0;			-- numbers added so far
-	signal shown:integer range 0 to 1048575 := 0;	-- sum on the display
+	signal tri:integer range 0 to 1048575;
+	signal i:integer range 0 to 1023 := 0;
+	signal shown:integer range 0 to 1048575 := 0;
 	signal bcd:std_logic_vector(23 downto 0);
 	signal d0,d1,d2,d3,d4,d5:integer range 0 to 9;
-	signal big:std_logic;							-- sum >= 10000
-	signal s0,s1,s2,s3,hi1:integer range 0 to 15;	-- 15 = blank
+	signal big:std_logic;
+	signal s0,s1,s2,s3,hi1:integer range 0 to 15;
 begin
 	clk <= CLOCK_50;
 	n <= to_integer(unsigned(sw2));
 	tri <= (n*(n+1))/2;
 
-	-- buttons (active low): synchronize, detect a press, ignore bounce
 	process(clk)
 	begin
 		if rising_edge(clk) then
@@ -98,22 +89,21 @@ begin
 		end if;
 	end process;
 
-	-- sum
 	process(clk)
 	begin
 		if rising_edge(clk) then
 			swd <= sw2;
-			if sw2 /= swd then					-- switches changed: start over
+			if sw2 /= swd then
 				i <= 0;
 				shown <= 0;
-			elsif p0='1' then					-- BUTTON0: result at once
+			elsif p0='1' then
 				i <= n;
 				shown <= tri;
-			elsif p1='1' then					-- BUTTON1: one step
+			elsif p1='1' then
 				if i < n then
 					i <= i+1;
 					shown <= shown + (i+1);
-				else							-- finished: next press starts again
+				else
 					i <= 0;
 					shown <= 0;
 				end if;
@@ -123,7 +113,6 @@ begin
 
 	LEDG <= std_logic_vector(to_unsigned(i,10));
 
-	-- display: lower 4 digits (leading zeros blank), or the upper digits while BUTTON2 is held
 	bcd <= bin2bcd(shown);
 	d0 <= to_integer(unsigned(bcd(3 downto 0)));
 	d1 <= to_integer(unsigned(bcd(7 downto 4)));
@@ -146,9 +135,9 @@ begin
 	U2:Seg7 port map(s2,HEX2_D);
 	U1:Seg7 port map(s1,HEX1_D);
 	U0:Seg7 port map(s0,HEX0_D);
-	HEX0_DP <= '1';								-- decimal points off,
+	HEX0_DP <= '1';
 	HEX1_DP <= '1';
 	HEX2_DP <= '1';
-	HEX3_DP <= '0' when big='1' and h2='0' else '1';	-- except HEX3 when digits are hidden
+	HEX3_DP <= '0' when big='1' and h2='0' else '1';
 
 end SumSW;

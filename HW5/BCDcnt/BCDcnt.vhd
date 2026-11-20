@@ -1,12 +1,9 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
--- 4-digit BCD up/down counter 0~9999 on DE0 (HEX3 ~ HEX0), 100 Hz
---   BUTTON0 : Reset (press = 0000)
---   SW0     : direction (1 = up, 0 = down)
 entity BCDcnt is
 	generic(
-			STEP_CLKS:integer := 500000		-- clocks per count, 100 Hz
+			STEP_CLKS:integer := 500000
 			);
 	port(
 			CLOCK_50:in std_logic;
@@ -33,14 +30,13 @@ architecture BCDcnt of BCDcnt is
 
 	signal clk,Reset,up:std_logic;
 	signal cnt:integer range 0 to 16777215;
-	signal tick:std_logic := '0';					-- one pulse per count
-	signal d0,d1,d2,d3:integer range 0 to 9 := 0;	-- digits, d3 = thousands
+	signal tick:std_logic := '0';
+	signal d0,d1,d2,d3:integer range 0 to 9 := 0;
 begin
 	clk <= CLOCK_50;
 	Reset <= BUTTON(0);
 	up <= SW(0);
 
-	-- 100 Hz count rate
 	process(clk)
 	begin
 		if rising_edge(clk) then
@@ -54,7 +50,6 @@ begin
 		end if;
 	end process;
 
-	-- cascaded BCD digits, count up or down, wrap around
 	process(clk,Reset)
 	begin
 		if Reset='0' then
@@ -107,7 +102,7 @@ begin
 	U2:Seg7 port map(d2,HEX2_D);
 	U1:Seg7 port map(d1,HEX1_D);
 	U0:Seg7 port map(d0,HEX0_D);
-	HEX0_DP <= '1';									-- decimal points off
+	HEX0_DP <= '1';
 	HEX1_DP <= '1';
 	HEX2_DP <= '1';
 	HEX3_DP <= '1';
